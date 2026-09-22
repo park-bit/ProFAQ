@@ -1,0 +1,52 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Virtualenv - kept in project, not committed
+.venv/
+
+# pip and npm cache - kept in project, not committed
+.pip_cache/
+.npm_cache/
+
+# HuggingFace model cache - large, not committed
+data/hf_cache/
+
+# Local data (DB, uploads, Qdrant storage)
+data/
+*.db
+*.sqlite
+*.sqlite3
+
+# Env
+.env
+.env.local
+.env.*.local
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# graphify knowledge graph outputs
+graphify-out/
+

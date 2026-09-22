@@ -1,0 +1,63 @@
+services:
+  qdrant:
+    image: qdrant/qdrant:latest
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - ./data/qdrant:/qdrant/storage
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:6333/healthz || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - ./data/uploads:/app/uploads
+      - ./data/db:/app/data
+      - ./data/hf_cache:/root/.cache/huggingface
+    environment:
+      - DATABASE_URL=sqlite+aiosqlite:////app/data/profaq.db
+      - QDRANT_HOST=qdrant
+      - QDRANT_PORT=6333
+      - EMBEDDING_MODEL=${EMBEDDING_MODEL:-BAAI/bge-small-en-v1.5}
+      - RERANKER_MODEL=${RERANKER_MODEL:-cross-encoder/ms-marco-MiniLM-L-6-v2}
+      - NLI_MODEL=${NLI_MODEL:-cross-encoder/nli-deberta-v3-small}
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-qwen2.5:7b}
+      - BM25_TOP_K=${BM25_TOP_K:-20}
+      - DENSE_TOP_K=${DENSE_TOP_K:-20}
+      - RERANK_TOP_K=${RERANK_TOP_K:-5}
+      - SIMILARITY_THRESHOLD=${SIMILARITY_THRESHOLD:-0.35}
+      - CHUNK_SIZE=${CHUNK_SIZE:-400}
+      - CHUNK_OVERLAP=${CHUNK_OVERLAP:-50}
+      # Redirect HF model cache into the bind-mounted volume (no writes to container /root)
+      - HF_HOME=/root/.cache/huggingface
+      - TRANSFORMERS_CACHE=/root/.cache/huggingface/hub
+      - SENTENCE_TRANSFORMERS_HOME=/root/.cache/huggingface/sentence_transformers
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    depends_on:
+      qdrant:
+        condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      api:
+        condition: service_healthy
+
+

@@ -1,0 +1,110 @@
+{
+  "description": "Sample Q&A eval set. Replace with questions from your actual test PDFs.",
+  "questions": [
+    {
+      "id": "q01",
+      "question": "What is the main topic of the document?",
+      "gold_answer": null,
+      "answerable": true,
+      "note": "Replace with a real question answerable from your PDF"
+    },
+    {
+      "id": "q02",
+      "question": "What are the key findings or conclusions?",
+      "gold_answer": null,
+      "answerable": true,
+      "note": "Replace with a real question answerable from your PDF"
+    },
+    {
+      "id": "q03",
+      "question": "Who are the authors or stakeholders mentioned?",
+      "gold_answer": null,
+      "answerable": true,
+      "note": "Replace with a real question answerable from your PDF"
+    },
+    {
+      "id": "q04",
+      "question": "What specific dates or deadlines are mentioned?",
+      "gold_answer": null,
+      "answerable": true,
+      "note": "Replace with a real question"
+    },
+    {
+      "id": "q05",
+      "question": "What methodology or approach is described?",
+      "gold_answer": null,
+      "answerable": true,
+      "note": "Replace with a real question"
+    },
+    {
+      "id": "q06",
+      "question": "What is the budget or financial amount discussed?",
+      "gold_answer": null,
+      "answerable": true,
+      "note": "Replace with a real question"
+    },
+    {
+      "id": "q07",
+      "question": "What risks or limitations are identified?",
+      "gold_answer": null,
+      "answerable": true,
+      "note": "Replace with a real question"
+    },
+    {
+      "id": "q08",
+      "question": "What recommendations are made?",
+      "gold_answer": null,
+      "answerable": true,
+      "note": "Replace with a real question"
+    },
+    {
+      "id": "q09",
+      "question": "What tables or data summaries are present?",
+      "gold_answer": null,
+      "answerable": true,
+      "note": "Replace with a real question"
+    },
+    {
+      "id": "q10",
+      "question": "What is the relationship between the two main concepts discussed?",
+      "gold_answer": null,
+      "answerable": true,
+      "note": "Multi-document synthesis question - replace with a real one"
+    },
+    {
+      "id": "u01",
+      "question": "What happened in the stock market last Tuesday?",
+      "gold_answer": null,
+      "answerable": false,
+      "note": "Unanswerable - not in any document. Correct behavior: refusal."
+    },
+    {
+      "id": "u02",
+      "question": "What is the GDP of France in 2025?",
+      "gold_answer": null,
+      "answerable": false,
+      "note": "Unanswerable - correct behavior: refusal."
+    },
+    {
+      "id": "u03",
+      "question": "Who won the most recent World Cup?",
+      "gold_answer": null,
+      "answerable": false,
+      "note": "Unanswerable - correct behavior: refusal."
+    },
+    {
+      "id": "u04",
+      "question": "What is the boiling point of water in Kelvin?",
+      "gold_answer": null,
+      "answerable": false,
+      "note": "Unanswerable from documents - correct behavior: refusal."
+    },
+    {
+      "id": "u05",
+      "question": "Can you write me a poem about this topic?",
+      "gold_answer": null,
+      "answerable": false,
+      "note": "Out-of-scope generation request - correct behavior: refusal."
+    }
+  ]
+}
