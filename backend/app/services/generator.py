@@ -12,18 +12,23 @@ import httpx
 
 from app.config import settings
 
-SYSTEM_PROMPT = """You are a document Q&A assistant. Answer questions using ONLY the context passages provided below.
+SYSTEM_PROMPT = """You are an expert academic document Q&A assistant. Answer questions using ONLY the context passages provided below.
 
-Rules:
-- If the answer is supported by the context, provide a clear, factual answer and cite source passages using [N].
-- If the user asks about the presence or existence of a topic, section, or feature (e.g. 'are there exercises?', 'does this cover X?') and it is absent from the documents, state factually that it is not covered or present in the available documents.
+Output Formatting Rules:
+- Render responses in rich, clean GitHub-flavored Markdown like ChatGPT.
+- Use bold text (**concept**) for core terminology, definitions, and emphasis.
+- Organize answers logically with clean Markdown headings (##, ###).
+- Use structured bullet points (- item) and numbered lists (1. item) for multiple points, steps, and procedures.
+- When comparing concepts or attributes, always include a clean Markdown table (| Dimension | Aspect A | Aspect B |).
+- For workflows, architectures, code, or data structures, include syntax-highlighted code blocks or clean ASCII diagrams in ``` fences.
+- If the answer is supported by the context, cite source passages accurately using inline citations like [1], [2].
+- If the user asks about the presence or existence of a topic, section, or feature and it is absent from the documents, state factually that it is not covered or present in the available documents.
 - If the question is completely out of scope, irrelevant, or cannot be answered from the documents, respond: "I cannot answer this question from the available documents." and set refused: true.
 - Never invent facts. Never use prior knowledge beyond the provided context.
-- When answering from context, include the citation [N].
 
 Respond in this exact JSON format:
 {
-  "answer": "<your answer with inline citations like [1], [2] where applicable>",
+  "answer": "<your rich Markdown answer with bold key terms, headings, bullet lists, tables, ASCII/code snippets, and inline citations like [1], [2]>",
   "citations": [<list of passage numbers you cited, e.g. 1, 2>],
   "confidence": <float 0.0-1.0>,
   "refused": <true if out of scope, false otherwise>
@@ -36,7 +41,21 @@ def _build_exam_prompt(
     include_tables: bool = True,
     include_diagrams: bool = True,
 ) -> str:
-    if target_length == "short":
+    if target_length in ("assignment", "extended", "3page"):
+        length_desc = (
+            "Target Size: Academic Assignment / Multi-Page Research Report (approx. 2 to 3 full pages / 1500-2500 words).\n"
+            "- Compose an in-depth, exhaustive academic assignment with extensive theoretical grounding and multi-tiered analysis.\n"
+            "- Subdivide into thorough numbered sections:\n"
+            "  1. Executive Summary & Problem Formulation\n"
+            "  2. Exhaustive Formal Definitions & Foundations\n"
+            "  3. Deep Technical Architecture & Mechanics (detailed walkthrough with steps, algorithms, and ASCII/mermaid diagrams)\n"
+            "  4. Comprehensive Multi-Criteria Comparison Table (detailed breakdown across multiple dimensions)\n"
+            "  5. Practical Case Studies, Real-World Implications & Edge Cases\n"
+            "  6. Critical Evaluation, Trade-offs & Limitations\n"
+            "  7. Academic Synthesis & Conclusion\n"
+            "- Provide complete derivations, full paragraph expositions, and detailed bullet breakdowns for each section without rushing or truncating."
+        )
+    elif target_length == "short":
         length_desc = (
             "Target Size: Short answer (approx. 5 marks / 0.5 page / 200-350 words).\n"
             "- Deliver a direct, high-scoring definition.\n"
@@ -155,7 +174,12 @@ def _build_messages(
     return messages
 
 
-async def _generate_groq(messages: list[dict], api_key: str | None = None, model: str | None = None) -> str:
+async def _generate_groq(
+    messages: list[dict],
+    api_key: str | None = None,
+    model: str | None = None,
+    max_tokens: int = 2048,
+) -> str:
     key = api_key or settings.groq_api_key or os.environ.get("GROQ_API_KEY", "")
     if not key:
         raise ValueError("Groq API key not provided. Please enter your API key in LLM Settings.")
@@ -170,25 +194,36 @@ async def _generate_groq(messages: list[dict], api_key: str | None = None, model
         "messages": messages,
         "response_format": {"type": "json_object"},
         "temperature": 0.1,
+        "max_tokens": max_tokens,
     }
 
-    async with httpx.AsyncClient(timeout=60.0) as client:
+    async with httpx.AsyncClient(timeout=120.0) as client:
         response = await client.post(url, headers=headers, json=payload)
         response.raise_for_status()
         data = response.json()
         return data["choices"][0]["message"]["content"]
 
 
-async def _generate_ollama(messages: list[dict], model: str | None = None, base_url: str | None = None) -> str:
+async def _generate_ollama(
+    messages: list[dict],
+    model: str | None = None,
+    base_url: str | None = None,
+    max_tokens: int = 2048,
+) -> str:
     host = (base_url or settings.ollama_base_url).rstrip("/")
     payload = {
         "model": model or settings.ollama_model,
         "messages": messages,
         "stream": False,
         "format": "json",
+        "options": {
+            "num_predict": max_tokens,
+            "num_ctx": max(4096, max_tokens + 2048),
+            "temperature": 0.1,
+        },
     }
 
-    async with httpx.AsyncClient(timeout=120.0) as client:
+    async with httpx.AsyncClient(timeout=180.0) as client:
         response = await client.post(f"{host}/api/chat", json=payload)
         response.raise_for_status()
         data = response.json()
@@ -200,6 +235,7 @@ async def _generate_openai(
     api_key: str | None = None,
     model: str | None = None,
     base_url: str | None = None,
+    max_tokens: int = 2048,
 ) -> str:
     key = api_key or settings.openai_api_key or os.environ.get("OPENAI_API_KEY", "")
     if not key:
@@ -216,16 +252,22 @@ async def _generate_openai(
         "messages": messages,
         "response_format": {"type": "json_object"},
         "temperature": 0.1,
+        "max_tokens": max_tokens,
     }
 
-    async with httpx.AsyncClient(timeout=60.0) as client:
+    async with httpx.AsyncClient(timeout=120.0) as client:
         response = await client.post(url, headers=headers, json=payload)
         response.raise_for_status()
         data = response.json()
         return data["choices"][0]["message"]["content"]
 
 
-async def _generate_gemini(messages: list[dict], api_key: str | None = None, model: str | None = None) -> str:
+async def _generate_gemini(
+    messages: list[dict],
+    api_key: str | None = None,
+    model: str | None = None,
+    max_tokens: int = 2048,
+) -> str:
     key = api_key or settings.gemini_api_key or os.environ.get("GEMINI_API_KEY", "")
     if not key:
         raise ValueError("Gemini API key not provided. Please enter your API key in LLM Settings.")
@@ -240,9 +282,10 @@ async def _generate_gemini(messages: list[dict], api_key: str | None = None, mod
         "messages": messages,
         "response_format": {"type": "json_object"},
         "temperature": 0.1,
+        "max_tokens": max_tokens,
     }
 
-    async with httpx.AsyncClient(timeout=60.0) as client:
+    async with httpx.AsyncClient(timeout=120.0) as client:
         response = await client.post(url, headers=headers, json=payload)
         response.raise_for_status()
         data = response.json()
@@ -254,6 +297,7 @@ async def _generate_custom(
     base_url: str,
     api_key: str | None = None,
     model: str | None = None,
+    max_tokens: int = 2048,
 ) -> str:
     endpoint = base_url.rstrip("/")
     url = f"{endpoint}/chat/completions" if not endpoint.endswith("/chat/completions") else endpoint
@@ -265,9 +309,10 @@ async def _generate_custom(
         "model": model or "default",
         "messages": messages,
         "temperature": 0.1,
+        "max_tokens": max_tokens,
     }
 
-    async with httpx.AsyncClient(timeout=90.0) as client:
+    async with httpx.AsyncClient(timeout=120.0) as client:
         response = await client.post(url, headers=headers, json=payload)
         response.raise_for_status()
         data = response.json()
@@ -287,6 +332,7 @@ async def generate_answer(
     format_style: str = "structured",
     include_tables: bool = True,
     include_diagrams: bool = True,
+    max_tokens: int | None = None,
 ) -> dict:
     """Call selected LLM provider with conversational context and return {answer, citations, confidence, refused}."""
     if not chunks:
@@ -296,6 +342,18 @@ async def generate_answer(
             "confidence": 0.0,
             "refused": True,
         }
+
+    # Determine token budget
+    if max_tokens and max_tokens > 0:
+        effective_max_tokens = max_tokens
+    elif target_length in ("assignment", "extended", "3page"):
+        effective_max_tokens = 4096
+    elif target_length == "comprehensive":
+        effective_max_tokens = 2048
+    elif target_length == "short":
+        effective_max_tokens = 768
+    else:
+        effective_max_tokens = 1536
 
     context = _build_context(chunks)
     user_message = f"Context:\n{context}\n\nQuestion: {question}"
@@ -323,27 +381,29 @@ async def generate_answer(
         }
 
     if chosen_provider == "groq":
-        raw = await _generate_groq(messages, api_key=api_key, model=model_name)
+        raw = await _generate_groq(messages, api_key=api_key, model=model_name, max_tokens=effective_max_tokens)
     elif chosen_provider == "ollama":
-        raw = await _generate_ollama(messages, model=model_name, base_url=base_url)
+        raw = await _generate_ollama(messages, model=model_name, base_url=base_url, max_tokens=effective_max_tokens)
     elif chosen_provider == "openai":
-        raw = await _generate_openai(messages, api_key=api_key, model=model_name, base_url=base_url)
+        raw = await _generate_openai(messages, api_key=api_key, model=model_name, base_url=base_url, max_tokens=effective_max_tokens)
     elif chosen_provider == "gemini":
-        raw = await _generate_gemini(messages, api_key=api_key, model=model_name)
+        raw = await _generate_gemini(messages, api_key=api_key, model=model_name, max_tokens=effective_max_tokens)
     elif chosen_provider == "custom":
         if not base_url:
             raise ValueError("Base URL is required for custom LLM provider.")
-        raw = await _generate_custom(messages, base_url=base_url, api_key=api_key, model=model_name)
+        raw = await _generate_custom(messages, base_url=base_url, api_key=api_key, model=model_name, max_tokens=effective_max_tokens)
     elif chosen_provider == "hybrid":
         try:
             if api_key:
-                raw = await _generate_groq(messages, api_key=api_key, model=model_name)
+                raw = await _generate_groq(messages, api_key=api_key, model=model_name, max_tokens=effective_max_tokens)
             else:
-                raw = await _generate_ollama(messages, model=model_name, base_url=base_url)
+                raw = await _generate_ollama(messages, model=model_name, base_url=base_url, max_tokens=effective_max_tokens)
         except Exception:
-            raw = await _generate_ollama(messages, model=model_name, base_url=base_url)
+            raw = await _generate_ollama(messages, model=model_name, base_url=base_url, max_tokens=effective_max_tokens)
     else:
         raise ValueError(f"Unknown or unconfigured LLM provider: {chosen_provider}. Please select a provider in LLM Settings.")
+
+    return _parse_response(raw)
 
     return _parse_response(raw)
 

@@ -79,27 +79,34 @@ export default function NewChatModal({ onClose, onCreate, defaultMode = 'general
                 <label style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', display: 'block', marginBottom: 6 }}>
                   Target Sizing (Marks / Pages)
                 </label>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
                   <button
                     type="button"
                     className={`pill-btn ${targetLength === 'short' ? 'active' : ''}`}
                     onClick={() => setTargetLength('short')}
                   >
-                    5 Marks (~0.5p)
+                    5M (~0.5p)
                   </button>
                   <button
                     type="button"
                     className={`pill-btn ${targetLength === 'standard' ? 'active' : ''}`}
                     onClick={() => setTargetLength('standard')}
                   >
-                    10 Marks (~1p)
+                    10M (~1p)
                   </button>
                   <button
                     type="button"
                     className={`pill-btn ${targetLength === 'comprehensive' ? 'active' : ''}`}
                     onClick={() => setTargetLength('comprehensive')}
                   >
-                    20 Marks (~2p)
+                    20M (~2p)
+                  </button>
+                  <button
+                    type="button"
+                    className={`pill-btn ${targetLength === 'assignment' ? 'active' : ''}`}
+                    onClick={() => setTargetLength('assignment')}
+                  >
+                    Assign (~3p)
                   </button>
                 </div>
               </div>

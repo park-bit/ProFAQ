@@ -145,10 +145,11 @@ class QueryRequest(BaseModel):
     model_name: Optional[str] = None
     base_url: Optional[str] = None
     answer_mode: Optional[str] = "general"  # "general" | "exam"
-    target_length: Optional[str] = "standard"  # "short" (5 marks / ~0.5 page), "standard" (10 marks / ~1 page), "comprehensive" (20 marks / ~2 pages)
+    target_length: Optional[str] = "standard"  # "short", "standard", "comprehensive" (~2 pages), "assignment" (~2-3 pages)
     format_style: Optional[str] = "structured"  # "structured" (headings + bullets + tables), "bullets", "narrative"
     include_tables: Optional[bool] = True
     include_diagrams: Optional[bool] = True
+    max_tokens: Optional[int] = None  # user configurable token budget (e.g. 1024, 2048, 4096, 8192)
 
 
 class LLMTestRequest(BaseModel):

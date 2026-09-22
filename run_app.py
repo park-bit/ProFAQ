@@ -14,6 +14,13 @@ import time
 import socket
 import traceback
 
+# Set Windows AppUserModelID so taskbar groups properly and displays the application icon
+try:
+    import ctypes
+    ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("ProFAQ.AcademicRAG.Desktop.1.0")
+except Exception:
+    pass
+
 # Guarantee root directory and python paths
 ROOT_DIR = pathlib.Path(__file__).resolve().parent
 DATA_DIR = ROOT_DIR / "data"
@@ -142,10 +149,37 @@ def main():
                         window.native.Icon = Icon(str(ico_path.resolve()))
                     except Exception:
                         pass
+
+                    # Win32 explicit WM_SETICON for small (titlebar) and big (taskbar/Alt+Tab)
+                    try:
+                        WM_SETICON = 0x0080
+                        ICON_SMALL = 0
+                        ICON_BIG = 1
+                        IMAGE_ICON = 1
+                        LR_LOADFROMFILE = 0x00000010
+                        h_small = ctypes.windll.user32.LoadImageW(
+                            0, str(ico_path.resolve()), IMAGE_ICON, 16, 16, LR_LOADFROMFILE
+                        )
+                        h_big = ctypes.windll.user32.LoadImageW(
+                            0, str(ico_path.resolve()), IMAGE_ICON, 32, 32, LR_LOADFROMFILE
+                        )
+                        if h_small:
+                            ctypes.windll.user32.SendMessageW(hwnd, WM_SETICON, ICON_SMALL, h_small)
+                        if h_big:
+                            ctypes.windll.user32.SendMessageW(hwnd, WM_SETICON, ICON_BIG, h_big)
+                    except Exception:
+                        pass
         except Exception:
             pass
 
     window.events.shown += on_window_shown
+
+    # Deferred thread to re-assert icon after Edge WebView2 initializes
+    def apply_icon_deferred():
+        time.sleep(0.5)
+        on_window_shown()
+
+    threading.Thread(target=apply_icon_deferred, daemon=True).start()
 
     try:
         # Starts native Windows WebView2 GUI

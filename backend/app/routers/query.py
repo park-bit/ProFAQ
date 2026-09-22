@@ -269,6 +269,7 @@ async def query_subject(
             format_style=effective_format_style,
             include_tables=include_tables,
             include_diagrams=include_diagrams,
+            max_tokens=body.max_tokens,
         )
         answer = gen["answer"]
         confidence = gen.get("confidence", 0.5)

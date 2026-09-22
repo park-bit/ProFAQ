@@ -151,7 +151,7 @@ function LLMSettingsModal({ onClose, onSaved }) {
     groq: ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'mixtral-8x7b-32768'],
     openai: ['gpt-4o-mini', 'gpt-4o', 'gpt-3.5-turbo'],
     gemini: ['gemini-2.0-flash', 'gemini-1.5-pro'],
-    ollama: ['qwen2.5:7b', 'llama3.1:8b', 'mistral:7b'],
+    ollama: ['profaqlm', 'qwen2.5:7b', 'llama3.1:8b', 'mistral:7b'],
     custom: ['deepseek-chat', 'meta-llama/Llama-3-70b-instruct'],
   }
 
@@ -888,7 +888,16 @@ export default function Workspace() {
   const [formatStyle, setFormatStyle] = useState('structured')
   const [includeTables, setIncludeTables] = useState(true)
   const [includeDiagrams, setIncludeDiagrams] = useState(true)
+  const [maxTokens, setMaxTokens] = useState(() => {
+    const saved = localStorage.getItem('profaq_max_tokens')
+    return saved ? parseInt(saved, 10) : 2048
+  })
   const [copiedMsgIdx, setCopiedMsgIdx] = useState(null)
+
+  const handleMaxTokensChange = (val) => {
+    setMaxTokens(val)
+    localStorage.setItem('profaq_max_tokens', String(val))
+  }
 
   // Modals state
   const [showNewChatModal, setShowNewChatModal] = useState(false)
@@ -1090,7 +1099,12 @@ export default function Workspace() {
     const nextTargetLength = updates.targetLength ?? targetLength
     const nextFormatStyle = updates.formatStyle ?? formatStyle
     if (updates.answerMode !== undefined) setAnswerMode(updates.answerMode)
-    if (updates.targetLength !== undefined) setTargetLength(updates.targetLength)
+    if (updates.targetLength !== undefined) {
+      setTargetLength(updates.targetLength)
+      if (updates.targetLength === 'assignment' && maxTokens < 4096) {
+        handleMaxTokensChange(4096)
+      }
+    }
     if (updates.formatStyle !== undefined) setFormatStyle(updates.formatStyle)
     if (updates.includeTables !== undefined) setIncludeTables(updates.includeTables)
     if (updates.includeDiagrams !== undefined) setIncludeDiagrams(updates.includeDiagrams)
@@ -1251,6 +1265,7 @@ export default function Workspace() {
         format_style: formatStyle,
         include_tables: includeTables,
         include_diagrams: includeDiagrams,
+        max_tokens: maxTokens,
       })
       setMessages((prev) => [...prev, { role: 'assistant', ...result }])
       if (result.session_id && result.session_id !== activeChatId) {
@@ -1297,6 +1312,7 @@ export default function Workspace() {
         format_style: formatStyle,
         include_tables: includeTables,
         include_diagrams: includeDiagrams,
+        max_tokens: maxTokens,
       })
       setMessages([...prior, { role: 'user', content: newPrompt }, { role: 'assistant', ...result }])
       getChats(subjectId).then(setChats).catch(() => {})
@@ -1815,6 +1831,14 @@ export default function Workspace() {
                   >
                     20M (~2p)
                   </button>
+                  <button
+                    type="button"
+                    className={`exam-pill ${targetLength === 'assignment' ? 'active' : ''}`}
+                    onClick={() => updateActiveChatConfig({ targetLength: 'assignment' })}
+                    title="Academic assignment: In-depth 2-3 pages comprehensive paper"
+                  >
+                    Assignment (~3p)
+                  </button>
                 </div>
 
                 <div className="exam-toolbar-group">
@@ -1865,6 +1889,21 @@ export default function Workspace() {
                 </div>
               </>
             )}
+
+            <div className="exam-toolbar-group" style={{ marginLeft: 'auto' }}>
+              <span className="exam-toolbar-label">Tokens:</span>
+              {[1024, 2048, 4096, 8192].map((tok) => (
+                <button
+                  key={tok}
+                  type="button"
+                  className={`exam-pill ${maxTokens === tok ? 'active' : ''}`}
+                  onClick={() => handleMaxTokensChange(tok)}
+                  title={`Max output token budget: ${tok} tokens`}
+                >
+                  {tok >= 1024 ? `${tok / 1024}k` : tok}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="chat-composer-wrap">
