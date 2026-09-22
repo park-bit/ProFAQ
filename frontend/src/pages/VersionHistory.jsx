@@ -205,7 +205,14 @@ export default function VersionHistory() {
 
       {commits.length === 0 && (
         <div className="empty-state">
-          <div className="empty-state-icon">🌱</div>
+          <div className="empty-state-noir-icon" style={{ margin: '0 auto 16px' }}>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="18" r="3"></circle>
+              <circle cx="6" cy="6" r="3"></circle>
+              <circle cx="18" cy="6" r="3"></circle>
+              <path d="M18 9a9 9 0 0 1-9 9"></path>
+            </svg>
+          </div>
           <p className="empty-state-title">No commits yet</p>
           <p className="empty-state-sub">Upload a PDF to create the first commit.</p>
         </div>

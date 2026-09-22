@@ -35,9 +35,11 @@ class Subject(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
     current_branch_id: Mapped[Optional[str]] = mapped_column(String, ForeignKey("branches.id", use_alter=True), nullable=True)
+    active_commit_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
     branches: Mapped[list["Branch"]] = relationship("Branch", back_populates="subject", foreign_keys="Branch.subject_id", cascade="all, delete-orphan")
     query_logs: Mapped[list["QueryLog"]] = relationship("QueryLog", back_populates="subject", cascade="all, delete-orphan")
+    chat_sessions: Mapped[list["ChatSession"]] = relationship("ChatSession", back_populates="subject", cascade="all, delete-orphan")
 
 
 class Branch(Base):
@@ -86,6 +88,7 @@ class DocumentVersion(Base):
     page_count: Mapped[int] = mapped_column(Integer, default=0)
     chunk_count: Mapped[int] = mapped_column(Integer, default=0)
     status: Mapped[str] = mapped_column(String(20), default="added")  # added / removed / unchanged
+    source_version_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)  # original indexed doc version
     indexed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
     commit: Mapped["Commit"] = relationship("Commit", back_populates="document_versions")
@@ -112,11 +115,31 @@ class Chunk(Base):
     document_version: Mapped["DocumentVersion"] = relationship("DocumentVersion", back_populates="chunks")
 
 
+class ChatSession(Base):
+    """Conversation thread for a subject."""
+
+    __tablename__ = "chat_sessions"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=new_uuid)
+    subject_id: Mapped[str] = mapped_column(String, ForeignKey("subjects.id", ondelete="CASCADE"), nullable=False)
+    branch_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    title: Mapped[str] = mapped_column(String(255), default="New Chat")
+    chat_type: Mapped[str] = mapped_column(String(30), default="general")
+    target_length: Mapped[str] = mapped_column(String(30), default="standard")
+    format_style: Mapped[str] = mapped_column(String(30), default="structured")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+    subject: Mapped["Subject"] = relationship("Subject", back_populates="chat_sessions")
+    query_logs: Mapped[list["QueryLog"]] = relationship("QueryLog", back_populates="session", cascade="all, delete-orphan")
+
+
 class QueryLog(Base):
     __tablename__ = "query_logs"
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=new_uuid)
     subject_id: Mapped[str] = mapped_column(String, ForeignKey("subjects.id"), nullable=False)
+    session_id: Mapped[Optional[str]] = mapped_column(String, ForeignKey("chat_sessions.id", ondelete="SET NULL"), nullable=True)
     branch_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     commit_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     question: Mapped[str] = mapped_column(Text, nullable=False)
@@ -130,6 +153,7 @@ class QueryLog(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     subject: Mapped["Subject"] = relationship("Subject", back_populates="query_logs")
+    session: Mapped[Optional["ChatSession"]] = relationship("ChatSession", back_populates="query_logs")
 
 
 class EvalRun(Base):

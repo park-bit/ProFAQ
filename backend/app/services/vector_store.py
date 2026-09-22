@@ -13,9 +13,12 @@ from qdrant_client.models import (
     Filter,
     FieldCondition,
     MatchValue,
+    MatchAny,
 )
 
-from app.config import settings
+from app.config import settings, QDRANT_DIR
+
+import pathlib
 
 COLLECTION = "profaq_chunks"
 VECTOR_SIZE = 384  # bge-small-en-v1.5
@@ -26,7 +29,13 @@ _client: QdrantClient | None = None
 def get_client() -> QdrantClient:
     global _client
     if _client is None:
-        _client = QdrantClient(host=settings.qdrant_host, port=settings.qdrant_port)
+        if settings.qdrant_url:
+            _client = QdrantClient(url=settings.qdrant_url, api_key=settings.qdrant_api_key or None)
+        else:
+            storage_path = str(QDRANT_DIR)
+            pathlib.Path(storage_path).mkdir(parents=True, exist_ok=True)
+            _client = QdrantClient(path=storage_path)
+
         _ensure_collection(_client)
     return _client
 
@@ -55,17 +64,27 @@ def search_dense(
     subject_id: str,
     commit_id: str,
     top_k: int,
+    doc_version_ids: list[str] | None = None,
 ) -> list[dict]:
     client = get_client()
-    results = client.search(
-        collection_name=COLLECTION,
-        query_vector=query_vector,
-        query_filter=Filter(
+    if doc_version_ids:
+        query_filter = Filter(
+            must=[
+                FieldCondition(key="document_version_id", match=MatchAny(any=doc_version_ids)),
+            ]
+        )
+    else:
+        query_filter = Filter(
             must=[
                 FieldCondition(key="subject_id", match=MatchValue(value=subject_id)),
                 FieldCondition(key="commit_id", match=MatchValue(value=commit_id)),
             ]
-        ),
+        )
+
+    results = client.search(
+        collection_name=COLLECTION,
+        query_vector=query_vector,
+        query_filter=query_filter,
         limit=top_k,
         with_payload=True,
     )

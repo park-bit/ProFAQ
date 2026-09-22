@@ -94,7 +94,13 @@ export default function EvalDashboard() {
 
       {!loading && runs.length === 0 && (
         <div className="empty-state">
-          <div className="empty-state-icon">📊</div>
+          <div className="empty-state-noir-icon" style={{ margin: '0 auto 16px' }}>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="20" x2="18" y2="10"></line>
+              <line x1="12" y1="20" x2="12" y2="4"></line>
+              <line x1="6" y1="20" x2="6" y2="14"></line>
+            </svg>
+          </div>
           <p className="empty-state-title">No eval runs yet</p>
           <p className="empty-state-sub">Run the eval script to populate this dashboard.</p>
         </div>
@@ -103,10 +109,10 @@ export default function EvalDashboard() {
       {!loading && runs.length > 0 && (
         <>
           <div className="metrics-grid">
-            <MetricCard label="Answer Accuracy" value={latest?.answer_accuracy} color="var(--accent)" />
-            <MetricCard label="Citation Precision" value={latest?.citation_precision} color="var(--green)" />
-            <MetricCard label="Correct Refusal Rate" value={latest?.refusal_rate} color="var(--amber)" />
-            <MetricCard label="Mean Grounding Score" value={latest?.mean_grounding_score} color="var(--text-primary)" />
+            <MetricCard label="Answer Accuracy" value={latest?.answer_accuracy} color="#ffffff" />
+            <MetricCard label="Mean Grounding" value={latest?.mean_grounding_score} color="var(--green)" />
+            <MetricCard label="Citation Precision" value={latest?.citation_precision} color="var(--text-secondary)" />
+            <MetricCard label="Correct Refusal" value={latest?.refusal_rate} color="var(--amber)" />
             <div className="metric-card">
               <p className="metric-label">Total Questions</p>
               <p className="metric-value">{latest?.total_questions ?? '--'}</p>
@@ -128,14 +134,14 @@ export default function EvalDashboard() {
                   <XAxis dataKey="name" tick={{ fill: 'var(--text-muted)', fontSize: 12 }} />
                   <YAxis domain={[0, 100]} tick={{ fill: 'var(--text-muted)', fontSize: 12 }} tickFormatter={(v) => `${v}%`} />
                   <Tooltip
-                    contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 13 }}
+                    contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: 8, fontSize: 13, color: '#f4f4f6' }}
                     formatter={(v) => `${v}%`}
                   />
                   <Legend wrapperStyle={{ fontSize: 12, color: 'var(--text-secondary)' }} />
-                  <Line type="monotone" dataKey="accuracy" name="Answer accuracy" stroke="#6366f1" strokeWidth={2} dot={false} />
-                  <Line type="monotone" dataKey="grounding" name="Grounding" stroke="#22c55e" strokeWidth={2} dot={false} />
-                  <Line type="monotone" dataKey="refusal" name="Refusal rate" stroke="#f59e0b" strokeWidth={2} dot={false} />
-                  <Line type="monotone" dataKey="citation" name="Citation precision" stroke="#38bdf8" strokeWidth={2} dot={false} />
+                  <Line type="monotone" dataKey="accuracy" name="Answer accuracy" stroke="#ffffff" strokeWidth={2} dot={false} />
+                  <Line type="monotone" dataKey="grounding" name="Grounding" stroke="#10a37f" strokeWidth={2} dot={false} />
+                  <Line type="monotone" dataKey="refusal" name="Refusal rate" stroke="#fbbf24" strokeWidth={2} dot={false} />
+                  <Line type="monotone" dataKey="citation" name="Citation precision" stroke="#a1a1aa" strokeWidth={2} dot={false} />
                 </LineChart>
               </ResponsiveContainer>
             </div>

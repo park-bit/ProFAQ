@@ -156,12 +156,17 @@ async def ingest_pdf(
     branch_id: str,
     commit_id: str,
     db: AsyncSession,
+    chunk_size: int | None = None,
+    chunk_overlap: int | None = None,
 ) -> tuple[int, int]:
     """Parse, chunk, embed, and index a PDF. Returns (page_count, chunk_count)."""
     pages = _extract_pages(file_path)
     page_count = len(pages)
 
-    raw_chunks = extract_chunks(pages, settings.chunk_size, settings.chunk_overlap)
+    eff_chunk_size = chunk_size if chunk_size is not None and chunk_size > 0 else settings.chunk_size
+    eff_chunk_overlap = chunk_overlap if chunk_overlap is not None and chunk_overlap >= 0 else settings.chunk_overlap
+
+    raw_chunks = extract_chunks(pages, eff_chunk_size, eff_chunk_overlap)
     if not raw_chunks:
         return page_count, 0
 

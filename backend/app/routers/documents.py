@@ -3,7 +3,8 @@ import pathlib
 import shutil
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from typing import Optional
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,7 +18,7 @@ from app.services.ingest import ingest_pdf
 router = APIRouter()
 
 
-async def _resolve_branch_and_commit(subject_id: str, db: AsyncSession) -> tuple[Branch, Commit]:
+async def _resolve_branch_and_commit(subject_id: str, db: AsyncSession) -> tuple[Subject, Branch]:
     subject = (await db.execute(select(Subject).where(Subject.id == subject_id))).scalar_one_or_none()
     if not subject:
         raise HTTPException(status_code=404, detail="Subject not found")
@@ -33,12 +34,17 @@ async def _resolve_branch_and_commit(subject_id: str, db: AsyncSession) -> tuple
 async def upload_pdf(
     subject_id: str,
     file: UploadFile = File(...),
+    chunk_size: Optional[int] = Form(None),
+    chunk_overlap: Optional[int] = Form(None),
     db: AsyncSession = Depends(get_db),
 ):
     if not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF files are accepted")
 
     subject, branch = await _resolve_branch_and_commit(subject_id, db)
+
+    eff_chunk_size = chunk_size if chunk_size is not None and chunk_size > 0 else settings.chunk_size
+    eff_chunk_overlap = chunk_overlap if chunk_overlap is not None and chunk_overlap >= 0 else settings.chunk_overlap
 
     # Save file to disk
     upload_path = pathlib.Path(settings.upload_dir) / subject_id
@@ -56,15 +62,15 @@ async def upload_pdf(
         message=f"Add {file.filename}",
         parent_commit_id=parent_branch.head_commit_id,
         config_snapshot={
-            "chunk_size": settings.chunk_size,
-            "chunk_overlap": settings.chunk_overlap,
+            "chunk_size": eff_chunk_size,
+            "chunk_overlap": eff_chunk_overlap,
             "embedding_model": settings.embedding_model,
         },
     )
     db.add(new_commit)
     await db.flush()
 
-    # Carry forward existing document versions from the parent commit
+    # Carry forward existing document versions from the parent commit with source_version_id preserved
     if parent_branch.head_commit_id:
         old_docs = (
             await db.execute(
@@ -84,6 +90,7 @@ async def upload_pdf(
                 page_count=old_doc.page_count,
                 chunk_count=old_doc.chunk_count,
                 status="unchanged",
+                source_version_id=old_doc.source_version_id or old_doc.id,
                 indexed_at=old_doc.indexed_at,
             )
             db.add(carried)
@@ -108,14 +115,17 @@ async def upload_pdf(
         branch_id=branch.id,
         commit_id=new_commit.id,
         db=db,
+        chunk_size=eff_chunk_size,
+        chunk_overlap=eff_chunk_overlap,
     )
 
     doc_version.page_count = page_count
     doc_version.chunk_count = chunk_count
     doc_version.indexed_at = datetime.now(timezone.utc)
 
-    # Advance branch head
+    # Advance branch head and reset detached state
     branch.head_commit_id = new_commit.id
+    subject.active_commit_id = None
 
     await db.commit()
 
@@ -136,7 +146,7 @@ async def list_documents(
     db: AsyncSession = Depends(get_db),
 ):
     subject, branch = await _resolve_branch_and_commit(subject_id, db)
-    target_commit = commit_id or branch.head_commit_id
+    target_commit = commit_id or subject.active_commit_id or branch.head_commit_id
     if not target_commit:
         return []
 

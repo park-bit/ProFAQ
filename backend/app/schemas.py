@@ -32,6 +32,7 @@ class SubjectOut(BaseModel):
     created_at: datetime
     updated_at: datetime
     current_branch_id: Optional[str]
+    active_commit_id: Optional[str] = None
     branches: list[BranchSummary] = []
 
 
@@ -43,6 +44,7 @@ class SubjectSummary(BaseModel):
     created_at: datetime
     updated_at: datetime
     current_branch_id: Optional[str]
+    active_commit_id: Optional[str] = None
 
 
 # ── Branch ────────────────────────────────────────────────────────────────────
@@ -99,12 +101,67 @@ class UploadResponse(BaseModel):
     message: str
 
 
-# ── Query ─────────────────────────────────────────────────────────────────────
+class ChatHistoryItem(BaseModel):
+    role: str
+    content: str
+
+
+class ChatSessionCreate(BaseModel):
+    title: Optional[str] = None
+    branch_id: Optional[str] = None
+    chat_type: Optional[str] = "general"  # general or exam
+    target_length: Optional[str] = "standard"  # short (5 marks), standard (10 marks), comprehensive (20 marks)
+    format_style: Optional[str] = "structured"  # structured, bullets, narrative
+
+
+class ChatSessionUpdate(BaseModel):
+    title: Optional[str] = None
+    chat_type: Optional[str] = None
+    target_length: Optional[str] = None
+    format_style: Optional[str] = None
+
+
+class ChatSessionOut(BaseModel):
+    id: str
+    subject_id: str
+    branch_id: Optional[str] = None
+    title: str
+    chat_type: str = "general"
+    target_length: str = "standard"
+    format_style: str = "structured"
+    message_count: int = 0
+    created_at: datetime
+    updated_at: datetime
+
 
 class QueryRequest(BaseModel):
     question: str
+    session_id: Optional[str] = None
     branch_id: Optional[str] = None  # defaults to current_branch
     commit_id: Optional[str] = None  # defaults to branch head
+    history: Optional[list[ChatHistoryItem]] = None
+    llm_provider: Optional[str] = None
+    api_key: Optional[str] = None
+    model_name: Optional[str] = None
+    base_url: Optional[str] = None
+    answer_mode: Optional[str] = "general"  # "general" | "exam"
+    target_length: Optional[str] = "standard"  # "short" (5 marks / ~0.5 page), "standard" (10 marks / ~1 page), "comprehensive" (20 marks / ~2 pages)
+    format_style: Optional[str] = "structured"  # "structured" (headings + bullets + tables), "bullets", "narrative"
+    include_tables: Optional[bool] = True
+    include_diagrams: Optional[bool] = True
+
+
+class LLMTestRequest(BaseModel):
+    provider: str
+    api_key: Optional[str] = None
+    model_name: Optional[str] = None
+    base_url: Optional[str] = None
+
+
+class LLMTestResponse(BaseModel):
+    success: bool
+    message: str
+    reply: Optional[str] = None
 
 
 class CitationOut(BaseModel):
@@ -126,6 +183,9 @@ class QueryResponse(BaseModel):
     retrieved_chunks: int
     latency_ms: int
     log_id: str
+    session_id: Optional[str] = None
+    answer_mode: Optional[str] = "general"
+    target_length: Optional[str] = "standard"
 
 
 # ── Versioning ────────────────────────────────────────────────────────────────
@@ -133,6 +193,26 @@ class QueryResponse(BaseModel):
 class CheckoutRequest(BaseModel):
     branch_id: Optional[str] = None
     commit_id: Optional[str] = None
+
+
+class MergeRequest(BaseModel):
+    source_branch_id: str
+    target_branch_id: Optional[str] = None
+
+
+class ImportDocumentRequest(BaseModel):
+    source_subject_id: str
+    document_version_id: str
+
+
+class ExternalDocumentOut(BaseModel):
+    subject_id: str
+    subject_name: str
+    document_version_id: str
+    filename: str
+    page_count: int
+    chunk_count: int
+    indexed_at: Optional[datetime] = None
 
 
 class DiffResult(BaseModel):

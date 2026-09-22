@@ -163,7 +163,11 @@ export default function SubjectsDashboard() {
 
       {!loading && subjects.length === 0 && (
         <div className="empty-state">
-          <div className="empty-state-icon">📂</div>
+          <div className="empty-state-noir-icon" style={{ margin: '0 auto 16px' }}>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+            </svg>
+          </div>
           <p className="empty-state-title">No subjects yet</p>
           <p className="empty-state-sub">Create a subject to start building your first document knowledge base.</p>
         </div>
