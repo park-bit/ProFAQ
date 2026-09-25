@@ -293,6 +293,57 @@ function LLMSettingsModal({ onClose, onSaved }) {
             </div>
           )}
 
+          {provider === 'ollama' && (
+            <div style={{
+              padding: '12px',
+              borderRadius: 'var(--radius-sm)',
+              background: 'var(--bg-secondary)',
+              border: '1px solid var(--border)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 8,
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                  ProFAQLM-3B (Fine-Tuned Backbone)
+                </span>
+                <span className="badge badge-green" style={{ fontSize: '0.68rem' }}>Recommended</span>
+              </div>
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.4 }}>
+                Specialized 3B academic examiner fine-tuned for rich Markdown, structured citations, and university exam mode.
+              </p>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
+                <a
+                  href="https://huggingface.co/park-bit/ProFAQLM-3B/resolve/main/profaqlm-3b-q4_k_m.gguf"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="btn btn-ghost btn-sm"
+                  style={{ fontSize: '0.72rem', padding: '3px 8px', textDecoration: 'none' }}
+                >
+                  Direct GGUF Download (1.8GB) ↗
+                </a>
+                <a
+                  href="https://github.com/park-bit/ProFAQLM/releases"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="btn btn-ghost btn-sm"
+                  style={{ fontSize: '0.72rem', padding: '3px 8px', textDecoration: 'none' }}
+                >
+                  GitHub Releases ↗
+                </a>
+                <a
+                  href="https://huggingface.co/park-bit/ProFAQLM-3B"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="btn btn-ghost btn-sm"
+                  style={{ fontSize: '0.72rem', padding: '3px 8px', textDecoration: 'none' }}
+                >
+                  Hugging Face Hub ↗
+                </a>
+              </div>
+            </div>
+          )}
+
           <div style={{ marginTop: 6 }}>
             <button
               type="button"
