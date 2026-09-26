@@ -78,26 +78,75 @@ function MermaidBlock({ code, index }) {
   )
 }
 
+export function formatMarkdownContent(raw) {
+  if (!raw || typeof raw !== 'string') return ''
+  let text = raw.trim()
+
+  // 1. If wrapped in JSON string like {"answer": "...", ...}
+  if (text.startsWith('{') && text.includes('"answer"')) {
+    try {
+      const parsed = JSON.parse(text)
+      if (parsed.answer) {
+        text = String(parsed.answer)
+      }
+    } catch {
+      // Regex extraction fallback for truncated or invalid JSON
+      const match = text.match(/"answer"\s*:\s*"([\s\S]*)/)
+      if (match) {
+        const inner = match[1]
+        const endMatch = inner.match(/([\s\S]*?)(?:"\s*,\s*"citations"|"\s*,\s*"confidence"|"\s*\}\s*$|"\s*$)/)
+        text = endMatch ? endMatch[1] : inner.replace(/["}\s]+$/, '')
+      }
+    }
+  }
+
+  // 2. Unescape escaped characters if present
+  if (text.includes('\\n')) {
+    text = text.replace(/\\n/g, '\n').replace(/\\t/g, '\t').replace(/\\"/g, '"')
+  }
+
+  // 3. Strip leading answer counters like "#1\n", "1. ", "Answer:\n", etc.
+  text = text.replace(/^(?:#\d+|\bAnswer\b:?|\bQuestion\b:?|\d+\.)\s*\n*/, '')
+
+  // 4. Ensure bullet points (•, ●) start on new lines as Markdown lists
+  text = text.replace(/([^\n])\s*[•●]\s*/g, '$1\n- ')
+
+  // 5. Ensure "Step X:" or "Phase X:" gets its own subheader
+  text = text.replace(/([^\n])\s+(Step\s+\d+:|Phase\s+\d+:)\s*/g, '$1\n\n### $2\n\n')
+
+  // 6. Ensure Markdown headings (##, ###) have double newlines before them, without splitting hashes
+  text = text.replace(/([^\n#])\n*(#{1,4}\s+)/g, '$1\n\n$2')
+
+  // 7. Ensure section questions have proper subheadings
+  text = text.replace(/([a-z0-9.)\]])\s+(Why|What|How|When|Where)\s+([A-Z][a-zA-Z\s]+)\?\s+/g, '$1\n\n### $2 $3?\n\n')
+
+  // 8. Collapse 3+ newlines into 2 for clean paragraph spacing
+  text = text.replace(/\n{3,}/g, '\n\n')
+
+  return text.trim()
+}
+
 export default function MarkdownView({ content, onCitationClick }) {
   const containerRef = useRef(null)
+  const cleanContent = formatMarkdownContent(content)
 
   // Split markdown into markdown segments and mermaid blocks
   const parts = []
-  if (typeof content === 'string') {
+  if (cleanContent) {
     const regex = /```mermaid\s*\n([\s\S]*?)```/g
     let lastIndex = 0
     let match
 
-    while ((match = regex.exec(content)) !== null) {
+    while ((match = regex.exec(cleanContent)) !== null) {
       if (match.index > lastIndex) {
-        parts.push({ type: 'markdown', text: content.slice(lastIndex, match.index) })
+        parts.push({ type: 'markdown', text: cleanContent.slice(lastIndex, match.index) })
       }
       parts.push({ type: 'mermaid', code: match[1].trim() })
       lastIndex = regex.lastIndex
     }
 
-    if (lastIndex < content.length) {
-      parts.push({ type: 'markdown', text: content.slice(lastIndex) })
+    if (lastIndex < cleanContent.length) {
+      parts.push({ type: 'markdown', text: cleanContent.slice(lastIndex) })
     }
   }
 

@@ -73,6 +73,11 @@ export const saveStoredLLMConfig = (config) => {
   }
 }
 
+export const getBackendLLMConfig = () => req(`${BASE}/llm/config`)
+
+export const saveBackendLLMConfig = (data) =>
+  req(`${BASE}/llm/config`, { method: 'POST', body: JSON.stringify(data) })
+
 export const testLLMConnection = (data) =>
   req(`${BASE}/llm/test`, { method: 'POST', body: JSON.stringify(data) })
 

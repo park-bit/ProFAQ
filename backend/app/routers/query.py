@@ -16,12 +16,129 @@ from app.schemas import (
     ChatSessionUpdate,
     ChatSessionOut,
 )
+from pydantic import BaseModel
+
 from app.services.retrieval import retrieve
 from app.services.generator import generate_answer, test_llm_connection
 from app.services.grounding import check_grounding
-from app.config import settings
+from app.config import settings, ROOT_DIR
 
 router = APIRouter()
+
+
+class LLMConfigPayload(BaseModel):
+    provider: str = ""
+    model_name: str | None = None
+    api_key: str | None = None
+    base_url: str | None = None
+    enabled: bool = True
+
+
+def _update_env_file(updates: dict[str, str]):
+    env_path = ROOT_DIR / ".env"
+    lines = []
+    if env_path.exists():
+        lines = env_path.read_text(encoding="utf-8").splitlines()
+
+    seen = set()
+    new_lines = []
+    for line in lines:
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            new_lines.append(line)
+            continue
+        if "=" in line:
+            key, _ = line.split("=", 1)
+            key = key.strip()
+            if key in updates:
+                new_lines.append(f"{key}={updates[key]}")
+                seen.add(key)
+                continue
+        new_lines.append(line)
+
+    for key, val in updates.items():
+        if key not in seen:
+            new_lines.append(f"{key}={val}")
+
+    env_path.write_text("\n".join(new_lines) + "\n", encoding="utf-8")
+
+
+@router.get("/llm/config")
+async def get_llm_config():
+    provider = settings.llm_provider or "ollama"
+    model_name = (
+        settings.ollama_model if provider == "ollama"
+        else settings.groq_model if provider == "groq"
+        else settings.openai_model if provider == "openai"
+        else settings.gemini_model if provider == "gemini"
+        else "default"
+    )
+    api_key = (
+        settings.groq_api_key if provider == "groq"
+        else settings.openai_api_key if provider == "openai"
+        else settings.gemini_api_key if provider == "gemini"
+        else ""
+    )
+    base_url = (
+        settings.ollama_base_url if provider == "ollama"
+        else settings.openai_base_url if provider == "openai"
+        else ""
+    )
+    return {
+        "provider": provider,
+        "model_name": model_name,
+        "api_key": api_key,
+        "base_url": base_url,
+        "enabled": bool(settings.llm_provider),
+    }
+
+
+@router.post("/llm/config")
+async def update_llm_config(body: LLMConfigPayload):
+    prov = (body.provider or "").strip().lower()
+    settings.llm_provider = prov
+
+    updates = {"LLM_PROVIDER": prov}
+    if prov == "ollama":
+        if body.model_name:
+            settings.ollama_model = body.model_name.strip()
+            updates["OLLAMA_MODEL"] = settings.ollama_model
+        if body.base_url:
+            settings.ollama_base_url = body.base_url.strip()
+            updates["OLLAMA_BASE_URL"] = settings.ollama_base_url
+    elif prov == "groq":
+        if body.api_key:
+            settings.groq_api_key = body.api_key.strip()
+            updates["GROQ_API_KEY"] = settings.groq_api_key
+        if body.model_name:
+            settings.groq_model = body.model_name.strip()
+            updates["GROQ_MODEL"] = settings.groq_model
+    elif prov == "openai":
+        if body.api_key:
+            settings.openai_api_key = body.api_key.strip()
+            updates["OPENAI_API_KEY"] = settings.openai_api_key
+        if body.model_name:
+            settings.openai_model = body.model_name.strip()
+            updates["OPENAI_MODEL"] = settings.openai_model
+        if body.base_url:
+            settings.openai_base_url = body.base_url.strip()
+            updates["OPENAI_BASE_URL"] = settings.openai_base_url
+    elif prov == "gemini":
+        if body.api_key:
+            settings.gemini_api_key = body.api_key.strip()
+            updates["GEMINI_API_KEY"] = settings.gemini_api_key
+        if body.model_name:
+            settings.gemini_model = body.model_name.strip()
+            updates["GEMINI_MODEL"] = settings.gemini_model
+
+    _update_env_file(updates)
+    return {
+        "status": "ok",
+        "provider": settings.llm_provider,
+        "model_name": body.model_name or "",
+        "base_url": body.base_url or "",
+        "enabled": bool(settings.llm_provider),
+    }
 
 
 @router.post("/llm/test", response_model=LLMTestResponse)
@@ -283,7 +400,16 @@ async def query_subject(
             refused = False
             # Build citation objects from cited chunk indices (1-based)
             citations_out = []
-            for idx in cited_indices:
+            for raw_idx in cited_indices:
+                try:
+                    if isinstance(raw_idx, str):
+                        digits = re.findall(r"\d+", raw_idx)
+                        idx = int(digits[0]) if digits else -1
+                    else:
+                        idx = int(raw_idx)
+                except (ValueError, TypeError):
+                    continue
+
                 if 1 <= idx <= len(chunks):
                     c = chunks[idx - 1]
                     dv_id = c.get("document_version_id", "")

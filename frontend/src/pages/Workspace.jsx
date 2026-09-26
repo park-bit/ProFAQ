@@ -16,6 +16,8 @@ import {
   testLLMConnection,
   getStoredLLMConfig,
   saveStoredLLMConfig,
+  getBackendLLMConfig,
+  saveBackendLLMConfig,
   getChatHistory,
   clearChatHistory,
   getChats,
@@ -23,7 +25,7 @@ import {
   renameChat,
   deleteChat,
 } from '../api'
-import MarkdownView from '../components/MarkdownView'
+import MarkdownView, { formatMarkdownContent } from '../components/MarkdownView'
 import NewChatModal from '../components/NewChatModal'
 import { downloadMarkdown, buildExamRevisionSheet } from '../utils/exportMarkdown'
 
@@ -173,7 +175,7 @@ function LLMSettingsModal({ onClose, onSaved }) {
     }
   }
 
-  function handleSave() {
+  async function handleSave() {
     const isLocal = provider === 'ollama'
     const trimmedKey = apiKey.trim()
     const cfg = {
@@ -184,12 +186,20 @@ function LLMSettingsModal({ onClose, onSaved }) {
       base_url: baseUrl.trim(),
     }
     saveStoredLLMConfig(cfg)
+    try {
+      await saveBackendLLMConfig(cfg)
+    } catch (e) {
+      console.warn('Failed to sync LLM config with backend:', e)
+    }
     onSaved?.(cfg)
     onClose()
   }
 
-  function handleReset() {
+  async function handleReset() {
     saveStoredLLMConfig(null)
+    try {
+      await saveBackendLLMConfig({ provider: '', enabled: false })
+    } catch (e) {}
     onSaved?.(null)
     onClose()
   }
@@ -962,6 +972,21 @@ export default function Workspace() {
   const [llmConfig, setLLMConfig] = useState(() => getStoredLLMConfig())
   const chatEndRef = useRef()
 
+  useEffect(() => {
+    async function syncBackendLLM() {
+      try {
+        const backendCfg = await getBackendLLMConfig()
+        if (backendCfg && backendCfg.enabled) {
+          saveStoredLLMConfig(backendCfg)
+          setLLMConfig(backendCfg)
+        }
+      } catch (err) {
+        console.warn('Could not sync LLM config with backend:', err)
+      }
+    }
+    syncBackendLLM()
+  }, [])
+
   const loadData = useCallback(async (commitOverride, branchOverride) => {
     try {
       const [sub, brs] = await Promise.all([
@@ -1216,12 +1241,14 @@ export default function Workspace() {
 
   function handleDownloadAnswerMd(msg, index) {
     const cleanTitle = (msg.question || `answer-${index + 1}`).toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40)
-    const content = `# Exam Model Solution: ${msg.question || 'Document Q&A'}\n\n${msg.answer}\n\n---\n*Verified with ProFAQ*`
+    const formatted = formatMarkdownContent(msg.answer || '')
+    const content = `# Exam Model Solution: ${msg.question || 'Document Q&A'}\n\n${formatted}\n\n---\n*Verified with ProFAQ*`
     downloadMarkdown(`${cleanTitle}.md`, content)
   }
 
   function handleCopyAnswerMd(msg, index) {
-    navigator.clipboard.writeText(msg.answer || '')
+    const formatted = formatMarkdownContent(msg.answer || '')
+    navigator.clipboard.writeText(formatted)
     setCopiedMsgIdx(index)
     setTimeout(() => setCopiedMsgIdx(null), 2000)
   }

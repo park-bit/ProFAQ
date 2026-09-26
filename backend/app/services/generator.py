@@ -143,18 +143,142 @@ def _build_context(chunks: list[dict]) -> str:
     return "\n\n---\n\n".join(lines)
 
 
+def _clean_markdown_text(text: str) -> str:
+    """Ensure clean markdown paragraph spacing, headers, lists, and formatting like ChatGPT."""
+    if not text:
+        return ""
+
+    # Unescape escaped newlines and tabs if present
+    if "\\n" in text:
+        text = text.replace("\\n", "\n").replace("\\t", "\t").replace('\\"', '"')
+
+    # Strip leading answer counters like "#1\n", "1. ", "Answer:\n"
+    text = re.sub(r"^(?:#\d+|\bAnswer\b:?|\bQuestion\b:?|\d+\.)\s*\n*", "", text.strip())
+
+    # Convert inline bullets into markdown bullet lines
+    text = re.sub(r"([^\n])\s*[•●]\s*", r"\1\n- ", text)
+    # Convert inline Steps into markdown subheaders
+    text = re.sub(r"([^\n])\s+(Step\s+\d+:|Phase\s+\d+:)\s*", r"\1\n\n### \2\n\n", text)
+    # Ensure headings (##, ###) have double newline before them, without splitting hash marks
+    text = re.sub(r"([^\n#])\n*(#{1,4}\s+)", r"\1\n\n\2", text)
+    # Convert inline rhetorical / section questions into subheadings
+    text = re.sub(r"([a-z0-9\.\)\]])\s+(Why|What|How|When|Where)\s+([A-Z][a-zA-Z\s]+)\?\s+", r"\1\n\n### \2 \3?\n\n", text)
+    # Normalize multiple linebreaks for clean paragraph separation
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text.strip()
+
+
+def _dict_to_markdown(data: dict) -> str:
+    """If model outputs a structured dict instead of a flat answer key, convert to markdown."""
+    parts = []
+    if "title" in data:
+        parts.append(f"# {data['title']}\n")
+
+    for key, val in data.items():
+        if key.lower() in ("title", "citations", "references", "confidence", "refused", "latency_ms", "date"):
+            continue
+        header_name = key.replace("_", " ").title()
+        if isinstance(val, str):
+            parts.append(f"## {header_name}\n{val}\n")
+        elif isinstance(val, list):
+            for item in val:
+                if isinstance(item, dict):
+                    for subkey, subval in item.items():
+                        if subkey.lower() == "number":
+                            continue
+                        sub_header = subkey.replace("_", " ").title()
+                        if isinstance(subval, str):
+                            parts.append(f"## {sub_header}\n{subval}\n")
+                        elif isinstance(subval, list):
+                            parts.append(f"### {sub_header}")
+                            for subitem in subval:
+                                parts.append(f"- {subitem}")
+                elif isinstance(item, str):
+                    parts.append(f"- {item}")
+        elif isinstance(val, dict):
+            parts.append(f"## {header_name}")
+            for subkey, subval in val.items():
+                parts.append(f"### {subkey.replace('_', ' ').title()}\n{subval}\n")
+    return "\n\n".join(parts)
+
+
 def _parse_response(raw: str) -> dict:
+    raw = raw.strip()
+    data = None
+
+    # 1. Try JSON block match
     match = re.search(r"\{.*\}", raw, re.DOTALL)
     if match:
         try:
-            return json.loads(match.group())
-        except json.JSONDecodeError:
+            data = json.loads(match.group(), strict=False)
+        except Exception:
             pass
+
+    # 2. Try raw JSON
+    if not data and raw.startswith("{"):
+        try:
+            data = json.loads(raw, strict=False)
+        except Exception:
+            pass
+
+    citations = []
+    refused = False
+    confidence = 0.85
+
+    if isinstance(data, dict):
+        if "answer" in data:
+            answer = str(data["answer"])
+        elif "response" in data:
+            answer = str(data["response"])
+        else:
+            answer = _dict_to_markdown(data) or raw
+        citations = data.get("citations") or data.get("references") or []
+        refused = bool(data.get("refused", False))
+        confidence = float(data.get("confidence", 0.85))
+    else:
+        # 3. Robust regex fallback for truncated or malformed JSON
+        ans_match = re.search(r'"answer"\s*:\s*"(.*)', raw, re.DOTALL)
+        if ans_match:
+            answer_part = ans_match.group(1)
+            end_match = re.search(
+                r'(.*?)(?:"\s*,\s*"citations"|"\s*,\s*"confidence"|"\s*,\s*"refused"|"\s*\}\s*$|"\s*$)',
+                answer_part,
+                re.DOTALL,
+            )
+            answer = end_match.group(1) if end_match else answer_part.rstrip('"} \n\r\t')
+        else:
+            answer = raw
+
+        cit_match = re.search(r'"citations"\s*:\s*\[(.*?)\]', raw, re.DOTALL)
+        if cit_match:
+            citations = [int(x) for x in re.findall(r"\d+", cit_match.group(1))]
+
+        refused = '"refused": true' in raw.lower() or '"refused":true' in raw.lower()
+        confidence = 0.85 if citations else 0.5
+
+    clean_answer = _clean_markdown_text(answer)
+    clean_answer = re.sub(r'[,"]*\s*(?:"refused"|refused)\s*:\s*(?:true|false).*$', '', clean_answer, flags=re.IGNORECASE).strip()
+    clean_answer = re.sub(r'[,"]*\s*(?:"confidence"|confidence)\s*:\s*\d+(?:\.\d+)?.*$', '', clean_answer, flags=re.IGNORECASE).strip()
+
+    # Sanitize citations
+    clean_cits = []
+    if isinstance(citations, list):
+        for c in citations:
+            if isinstance(c, int):
+                clean_cits.append(c)
+            elif isinstance(c, str):
+                for d in re.findall(r"\d+", c):
+                    clean_cits.append(int(d))
+
+    if not clean_cits and clean_answer:
+        inline_cits = re.findall(r"\[(\d+)\]", clean_answer)
+        clean_cits = sorted(set(int(x) for x in inline_cits))
+
     return {
-        "answer": raw.strip(),
-        "citations": [],
-        "confidence": 0.3,
-        "refused": False,
+        "answer": clean_answer,
+        "citations": sorted(set(clean_cits)),
+        "confidence": confidence,
+        "refused": refused,
     }
 
 
@@ -402,8 +526,6 @@ async def generate_answer(
             raw = await _generate_ollama(messages, model=model_name, base_url=base_url, max_tokens=effective_max_tokens)
     else:
         raise ValueError(f"Unknown or unconfigured LLM provider: {chosen_provider}. Please select a provider in LLM Settings.")
-
-    return _parse_response(raw)
 
     return _parse_response(raw)
 

@@ -15,6 +15,8 @@ export function downloadMarkdown(filename, content) {
   URL.revokeObjectURL(url)
 }
 
+import { formatMarkdownContent } from '../components/MarkdownView'
+
 export function buildExamRevisionSheet({
   subjectName,
   subjectDescription,
@@ -48,7 +50,7 @@ export function buildExamRevisionSheet({
     } else if (msg.role === 'assistant' && currentQ) {
       qas.push({
         question: currentQ,
-        answer: msg.answer || '',
+        answer: formatMarkdownContent(msg.answer || ''),
         citations: msg.citations || [],
         confidence: msg.confidence,
         latency_ms: msg.latency_ms,

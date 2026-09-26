@@ -57,7 +57,7 @@ import uvicorn
 import webview
 from app.main import app
 
-def find_available_port(start_port=8000, max_port=8050):
+def find_available_port(start_port=8001, max_port=8050):
     for port in range(start_port, max_port):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             if s.connect_ex(("127.0.0.1", port)) != 0:
