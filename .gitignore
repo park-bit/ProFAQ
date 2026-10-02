@@ -20,7 +20,7 @@ data/
 *.db
 *.sqlite
 *.sqlite3
-
+logo.png
 # Env
 .env
 .env.local
