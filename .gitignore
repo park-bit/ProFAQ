@@ -50,3 +50,7 @@ Thumbs.db
 # graphify knowledge graph outputs
 graphify-out/
 
+# Local interview prep & story documentation (not committed)
+PROJECT_STORY.md
+INTERVIEW_PREP.md
+
